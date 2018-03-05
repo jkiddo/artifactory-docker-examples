@@ -16,27 +16,25 @@ errorExit () {
 usage () {
 
     cat << END_USAGE
-
 $0 - script for preparing the needed directories on the local host for mounting into the Artifactory Docker containers
-
 Usage: $0 options
 Supported options
--t   : (Required) Deployment type. 'pro', 'ha' or 'ha-shared-data'
+-t   : (Required) Deployment type. 'pro', 'oss', 'ha' or 'ha-shared-data'
        - pro            : Single Pro node
        - ha             : HA with two nodes
        - ha-shared-data : HA that uses a shared data mount
+       - oss            : Single OSS node
 -d   : Custom root data directory (defaults to /data)
 -c   : Clean local data directory. Delete the data directory on the host before creating the new ones
 -f   : Force removal if -c is passed (do not prompt)
 -h   : Show this usage
-
 Examples
 Prepare directories for Artifactory pro with default data directory
 Start : sudo $0 -t pro -c
-
+Prepare directories for Artifactory OSS with default data directory
+Start : sudo $0 -t oss -c
 Prepare a default HA deployment directories
 Start : sudo $0 -t ha -c
-
 END_USAGE
 
     exit 1
@@ -67,7 +65,7 @@ processOptions() {
         case $opt in
             t)  # Run type
                 TYPE=$OPTARG
-                if [[ ! "$TYPE" =~ ^(pro|ha|ha-shared-data)$ ]]; then
+                if [[ ! "$TYPE" =~ ^(pro|ha|ha-shared-data|oss)$ ]]; then
                     echo "ERROR: Deployment type $TYPE is not supported"
                     usage
                 fi
@@ -94,7 +92,7 @@ processOptions() {
 
     # Make sure mandatory parameters are set
     if [ -z "$TYPE" ]; then
-        echo "You must pass a deployment type (-t <pro|ha|ha-shared-data>)"
+        echo "You must pass a deployment type (-t <pro|ha|ha-shared-data|oss>)"
         usage
     fi
 
@@ -123,7 +121,7 @@ cleanDataDir () {
 createDirectories () {
     echo "Creating ${ROOT_DATA_DIR}"
     mkdir -p ${ROOT_DATA_DIR}/postgresql
-    if [ "$TYPE" == "pro" ]; then
+    if [ "$TYPE" == "pro" ] || [ "$TYPE" == "oss" ]; then
         mkdir -p ${ROOT_DATA_DIR}/artifactory/etc
     else
         mkdir -p ${ROOT_DATA_DIR}/artifactory/node{1,2}/etc
@@ -138,9 +136,11 @@ copyFiles () {
     echo "Copying needed files to directories"
 
     echo "Artifactory configuration files"
-    if [ "$TYPE" == "pro" ]; then
+    if [ "$TYPE" == "pro" ] || [ "$TYPE" == "oss" ]; then
         cp -f ${SCRIPT_DIR}/../files/security/communication.key ${ROOT_DATA_DIR}/artifactory/etc
         cp -fr ${SCRIPT_DIR}/../files/access ${ROOT_DATA_DIR}/artifactory/
+#    elif [ "$TYPE" == "oss" ]; then
+#         cp -fr ${SCRIPT_DIR}/../files/access ${ROOT_DATA_DIR}/artifactory/
     else
         cp -f ${SCRIPT_DIR}/../files/security/communication.key ${ROOT_DATA_DIR}/artifactory/node1
         cp -fr ${SCRIPT_DIR}/../files/access ${ROOT_DATA_DIR}/artifactory/node1/
@@ -158,11 +158,11 @@ copyFiles () {
 
     echo "Nginx Artifactory configuration"
     cp -fr ${SCRIPT_DIR}/../files/nginx/conf.d/${type}/* ${ROOT_DATA_DIR}/nginx/conf.d/
+
 }
 
 showNotes () {
     cat << END_NOTES1
-
 ======================================
 IMPORTANT
 * Before starting, it is recommended to place the license file(s) (artifactory.lic) in the Artifactory etc directory
@@ -182,7 +182,6 @@ END_NOTES1
     cat << END_NOTES2
 $extra_msg
 ======================================
-
 END_NOTES2
 }
 
